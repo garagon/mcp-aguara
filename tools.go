@@ -40,12 +40,15 @@ func scanContentTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name: "scan_content",
 		Description: "Scan the content of an AI agent skill or MCP server description for security issues. " +
-			"Checks for prompt injection, credential leaks, exfiltration, command execution, and more.",
+			"Checks for prompt injection, credential leaks, exfiltration, command execution, and more. " +
+			"Supports context-aware scanning with tool_name for false-positive reduction.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"content":        prop("string", "The text content to scan (e.g., skill description, README, tool definition)"),
 				"filename":       prop("string", "Filename hint for the content (affects rule matching). Default: skill.md"),
+				"tool_name":      prop("string", "Tool that generated the content (e.g., Bash, Edit, WebFetch). Enables context-aware false-positive reduction"),
+				"scan_profile":   prop("string", "Scan profile: strict (default, all rules), content-aware (reduced FP for known tools), or minimal (flag-only mode)"),
 				"min_severity":   prop("string", "Minimum severity to report: INFO, LOW, MEDIUM, HIGH, or CRITICAL"),
 				"disabled_rules": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "List of rule IDs to disable (e.g., [\"PROMPT_INJECTION_001\"])"},
 			},
@@ -68,6 +71,7 @@ func checkMCPConfigTool() *mcp.Tool {
 			"type": "object",
 			"properties": map[string]any{
 				"config":         prop("string", "The MCP configuration as a JSON string"),
+				"scan_profile":   prop("string", "Scan profile: strict (default, all rules), content-aware (reduced FP for known tools), or minimal (flag-only mode)"),
 				"min_severity":   prop("string", "Minimum severity to report: INFO, LOW, MEDIUM, HIGH, or CRITICAL"),
 				"disabled_rules": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "List of rule IDs to disable (e.g., [\"PROMPT_INJECTION_001\"])"},
 			},
@@ -190,6 +194,13 @@ var severityMap = map[string]aguara.Severity{
 	"CRITICAL": aguara.SeverityCritical,
 }
 
+var profileMap = map[string]aguara.ScanProfile{
+	"STRICT":        aguara.ProfileStrict,
+	"CONTENT-AWARE": aguara.ProfileContentAware,
+	"CONTENT_AWARE": aguara.ProfileContentAware,
+	"MINIMAL":       aguara.ProfileMinimal,
+}
+
 func buildScanOpts(args json.RawMessage) []aguara.Option {
 	var opts []aguara.Option
 	if sev := getString(args, "min_severity", ""); sev != "" {
@@ -199,6 +210,11 @@ func buildScanOpts(args json.RawMessage) []aguara.Option {
 	}
 	if disabled := getStringSlice(args, "disabled_rules"); len(disabled) > 0 {
 		opts = append(opts, aguara.WithDisabledRules(disabled...))
+	}
+	if profile := getString(args, "scan_profile", ""); profile != "" {
+		if p, ok := profileMap[strings.ToUpper(profile)]; ok {
+			opts = append(opts, aguara.WithScanProfile(p))
+		}
 	}
 	return opts
 }
@@ -229,9 +245,10 @@ func handleScanContent(debug bool) mcp.ToolHandler {
 
 		filename := getString(req.Params.Arguments, "filename", "skill.md")
 		filename = sanitizeFilename(filename)
+		toolName := getString(req.Params.Arguments, "tool_name", "")
 
 		if debug {
-			fmt.Fprintf(os.Stderr, "[DEBUG] scan_content: file=%s len=%d\n", filename, len(content))
+			fmt.Fprintf(os.Stderr, "[DEBUG] scan_content: file=%s len=%d tool=%s\n", filename, len(content), toolName)
 		}
 
 		if _, ok := ctx.Deadline(); !ok {
@@ -241,7 +258,14 @@ func handleScanContent(debug bool) mcp.ToolHandler {
 		}
 
 		opts := buildScanOpts(req.Params.Arguments)
-		result, err := aguara.ScanContent(ctx, content, filename, opts...)
+
+		var result *aguara.ScanResult
+		var err error
+		if toolName != "" {
+			result, err = aguara.ScanContentAs(ctx, content, filename, toolName, opts...)
+		} else {
+			result, err = aguara.ScanContent(ctx, content, filename, opts...)
+		}
 		if err != nil {
 			if debug {
 				fmt.Fprintf(os.Stderr, "[DEBUG] scan_content error: %v\n", err)
@@ -381,6 +405,7 @@ func formatScanResult(result *aguara.ScanResult) string {
 		Category    string  `json:"category"`
 		RuleName    string  `json:"rule_name"`
 		Description string  `json:"description"`
+		Remediation string  `json:"remediation,omitempty"`
 		Line        int     `json:"line"`
 		Column      int     `json:"column,omitempty"`
 		MatchedText string  `json:"matched_text"`
@@ -397,6 +422,7 @@ func formatScanResult(result *aguara.ScanResult) string {
 
 	type response struct {
 		Summary  string       `json:"summary"`
+		Verdict  string       `json:"verdict"`
 		Findings []findingOut `json:"findings"`
 		Stats    statsOut     `json:"stats"`
 	}
@@ -413,6 +439,7 @@ func formatScanResult(result *aguara.ScanResult) string {
 			Category:    f.Category,
 			RuleName:    f.RuleName,
 			Description: f.Description,
+			Remediation: f.Remediation,
 			Line:        f.Line,
 			Column:      f.Column,
 			MatchedText: f.MatchedText,
@@ -425,6 +452,7 @@ func formatScanResult(result *aguara.ScanResult) string {
 
 	resp := response{
 		Summary:  formatSummary(len(result.Findings), counts),
+		Verdict:  result.Verdict.String(),
 		Findings: findings,
 		Stats: statsOut{
 			FilesScanned: result.FilesScanned,
