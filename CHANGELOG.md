@@ -4,6 +4,17 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-01
+
+Agents can discover local MCP configurations without receiving the credentials,
+commands or instructions stored in them. Scans also stop honoring suppression
+directives from the content being inspected, while preserving explicit options
+chosen by the caller.
+
+**Upgrade note:** `discover_mcp` now returns a redacted inventory, not server
+definitions. Callers that forwarded its output to `check_mcp_config` must supply
+the original configuration JSON instead. An inventory is not a security verdict.
+
 ### Security
 
 - `discover_mcp` no longer returns raw local server definitions. Its redacted
@@ -19,14 +30,15 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ### Changed
 
-- Pin Aguara to merged commit `8412e8e5d2d122806002e4622ddd56394ecd9e44`
-  (`v0.28.1-0.20261101224820-8412e8e5d2d1`), including the restored `SC-EX-007`
-  detection of direct Python cron writes. This is a development pin, not a
-  published Aguara v0.28.1 release. The catalog contains 259 detections;
-  catalog availability does not imply activation in single-content scans.
+- The embedded engine includes the capability grant/drop corrections and the
+  restored `SC-EX-007` detection of direct Python cron writes. It uses Aguara
+  commit `8412e8e5d2d122806002e4622ddd56394ecd9e44`
+  (`v0.28.1-0.20261101224820-8412e8e5d2d1`), not a published Aguara v0.28.1
+  release. The catalog contains 259 detections; catalog availability does not
+  imply activation in single-content scans.
 - Source builds require Go 1.26 or later. CI and release workflows read the
   requirement from `go.mod`; the Docker builder uses the pinned Go 1.27.1 image
-  already used by Aguara core. The runtime image and MCP release version are unchanged.
+  already used by Aguara core. The runtime base image is unchanged.
 
 ### Fixed
 

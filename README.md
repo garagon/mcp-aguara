@@ -16,9 +16,9 @@ Use it to help agents answer questions like:
 - Does this skill try to read secrets or exfiltrate data?
 - Which rule triggered, and why?
 
-The development source pins [Aguara commit 8412e8e](https://github.com/garagon/aguara/commit/8412e8e5d2d122806002e4622ddd56394ecd9e44), a post-v0.28.0 revision that restores direct Python cron-write detection. The exact Go module version is `v0.28.1-0.20261101224820-8412e8e5d2d1`; this is not a published v0.28.1 release. Building from source requires Go 1.26 or later. The latest published Aguara MCP release, v0.8.0, still embeds v0.27.0; the changes below are not yet released. Built on the [official MCP SDK](https://github.com/modelcontextprotocol/go-sdk) (v1, Tier 1).
+The v0.9.0 source pins [Aguara commit 8412e8e](https://github.com/garagon/aguara/commit/8412e8e5d2d122806002e4622ddd56394ecd9e44), a post-v0.28.0 revision that restores direct Python cron-write detection. The exact Go module version is `v0.28.1-0.20261101224820-8412e8e5d2d1`; this is not a published Aguara v0.28.1 release. Building from source requires Go 1.26 or later. Source changes can precede published binaries; check [GitHub Releases](https://github.com/garagon/mcp-aguara/releases) for available artifacts. Built on the [official MCP SDK](https://github.com/modelcontextprotocol/go-sdk) (v1, Tier 1).
 
-Unreleased security changes: discovery returns a redacted inventory instead of raw local configurations, and scanned content can no longer suppress its own findings with inline Aguara directives. Explicit caller options such as `disabled_rules` remain supported.
+In v0.9.0, discovery returns a redacted inventory instead of raw local configurations, and scanned content can no longer suppress its own findings with inline Aguara directives. Explicit caller options such as `disabled_rules` remain supported. **Upgrading from v0.8.0:** callers that forwarded discovery output to `check_mcp_config` must instead supply the original configuration JSON; the inventory is not a scan input or a security verdict.
 
 Repository-wide dependency checks (npm, PyPI, pnpm, Go, crates.io, Composer, RubyGems, Maven, NuGet) are still handled by the Aguara CLI:
 
@@ -238,7 +238,7 @@ Aguara MCP is itself security-hardened:
 - **Input validation** - Rule IDs validated against strict format, content size capped at 10 MB
 - **Filename sanitization** - Allowlisted characters only, length-capped, no path traversal; the canonical `.github/workflows/<basename>` prefix is preserved so the ci-trust analyzer can reach workflow YAML
 - **Sensitivity-based output redaction** - Findings marked `Sensitive=true` by Aguara core (cred+exfil combos, toxic-flow cred reads, MCP_007, MCPCFG_003) or belonging to the `credential-leak` category have their `matched_text` replaced with `[REDACTED]` before the MCP serializes the response; the MCP keeps its own defensive guard in addition to Aguara's in-place scrub
-- **Signed release pipeline** - release binaries are Cosign-signed with SPDX SBOMs attached, the multi-arch Docker image at `ghcr.io/garagon/mcp-aguara` is signed at digest with SLSA provenance and SBOM attestations; verify with `VERSION=v0.8.0 .github/scripts/verify-release.sh`
+- **Signed release pipeline** - release binaries are Cosign-signed with SPDX SBOMs attached, the multi-arch Docker image at `ghcr.io/garagon/mcp-aguara` is signed at digest with SLSA provenance and SBOM attestations. After v0.9.0 artifacts are published, verify with `VERSION=v0.9.0 .github/scripts/verify-release.sh`.
 - **Version integrity** - Aguara scanner version is pinned in `go.sum`, verified at build time
 
 ## Advanced
