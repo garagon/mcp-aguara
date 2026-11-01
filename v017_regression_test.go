@@ -17,10 +17,10 @@ import (
 
 func TestV017_ListRules_ReturnsFullCatalog(t *testing.T) {
 	// The expected count tracks the aligned core version; update it on
-	// every core bump (v0.27.0: 193 YAML + 57 analyzer-emitted).
+	// every core bump (8412e8e: 191 YAML + 68 analyzer-emitted).
 	rules := aguara.ListRules()
-	if got, want := len(rules), 250; got != want {
-		t.Errorf("aguara.ListRules() = %d rules, want %d (193 YAML + 57 analyzer-emitted)", got, want)
+	if got, want := len(rules), 259; got != want {
+		t.Errorf("aguara.ListRules() = %d rules, want %d (191 YAML + 68 analyzer-emitted)", got, want)
 	}
 }
 
@@ -131,6 +131,7 @@ jobs:
 }
 
 func TestV017_Discover_DoesNotError(t *testing.T) {
+	isolatedDiscoveryHome(t)
 	// Smoke test for the discover_mcp tool's backing call. Discover walks
 	// local MCP client configs; on a clean machine it returns an empty
 	// result with no error. We only assert no error and a non-nil result.

@@ -322,7 +322,7 @@ func TestBuildScanOpts(t *testing.T) {
 }
 
 func TestValidRuleID(t *testing.T) {
-	valid := []string{"PROMPT_INJECTION_001", "EXFIL_007", "CRED_001", "A1", "NLP_PROMPT_INJECTION"}
+	valid := []string{"PROMPT_INJECTION_001", "EXFIL_007", "CRED_001", "A1", "NLP_PROMPT_INJECTION", "SC-EX-007"}
 	for _, id := range valid {
 		if !validRuleID.MatchString(id) {
 			t.Errorf("expected %q to be valid", id)

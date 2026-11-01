@@ -22,7 +22,7 @@ const maxContentSize = 10 << 20 // 10 MB
 // stable replacement value even if a future core release renames it.
 const redactedPlaceholder = "[REDACTED]"
 
-var validRuleID = regexp.MustCompile(`^[A-Z][A-Z0-9_]{1,63}$`)
+var validRuleID = regexp.MustCompile(`^[A-Z][A-Z0-9_-]{1,63}$`)
 
 // RegisterTools registers all aguara tools on the MCP server.
 func RegisterTools(s *mcp.Server, debug bool) {
@@ -108,10 +108,10 @@ func checkMCPConfigTool() *mcp.Tool {
 func listRulesTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name: "list_rules",
-		Description: "List the security rules cataloged by Aguara. Returns 250 detections (193 " +
-			"YAML pattern rules + 57 analyzer-emitted rules from ci-trust, pkgmeta, jsrisk, " +
-			"pyrisk, rsbuild, npm-policy, pnpm-policy, agent-policy, NLP, toxic-flow, and " +
-			"rug-pull analyzers) spanning multiple threat categories. Optionally filter by category " +
+		Description: "List the security rules cataloged by the embedded Aguara engine, including " +
+			"pattern and analyzer-emitted rules. Catalog availability does not mean every rule " +
+			"runs on a single content scan: bundle and stateful checks require other entry points. " +
+			"Optionally filter by category " +
 			"(e.g. `prompt-injection`, `exfiltration`, `credential-leak`, `supply-chain`, " +
 			"`mcp-attack`, `toxic-flow`, `agent-trust`).",
 		InputSchema: map[string]any{
@@ -157,10 +157,11 @@ func discoverMCPTool() *mcp.Tool {
 		Name: "discover_mcp",
 		Description: "Discover MCP server configurations on the local machine by reading known " +
 			"MCP client config files (Claude Desktop, Cursor, VS Code, Windsurf, and others). " +
-			"Returns the server definitions including commands, arguments, and environment " +
-			"variables. Read-only: this tool never executes the discovered commands and never " +
-			"connects to any server; pair with `check_mcp_config` to evaluate each definition " +
-			"before acting on it.",
+			"Returns a redacted inventory of clients and server counts, not server definitions " +
+			"or a security assessment. Commands, arguments, environment keys and values, server " +
+			"names, and local paths are withheld. Discovery is best-effort; missing or unreadable " +
+			"configs may be skipped. Never executes commands or connects to servers. This " +
+			"inventory cannot be used as input to check_mcp_config; that tool needs original JSON.",
 		InputSchema: map[string]any{
 			"type":       "object",
 			"properties": map[string]any{},
@@ -328,6 +329,12 @@ func handleCheckMCPConfig(debug bool) mcp.ToolHandler {
 		if !json.Valid([]byte(config)) {
 			return newToolResultError("config is not valid JSON"), nil
 		}
+		var envelope struct {
+			Kind string `json:"kind"`
+		}
+		if json.Unmarshal([]byte(config), &envelope) == nil && envelope.Kind == "aguara.discovery-inventory" {
+			return newToolResultError("discovery inventory is redacted and cannot be scanned as an MCP config; provide the original configuration JSON"), nil
+		}
 
 		if debug {
 			fmt.Fprintf(os.Stderr, "[DEBUG] check_mcp_config: len=%d\n", len(config))
@@ -383,7 +390,7 @@ func handleExplainRule() mcp.ToolHandler {
 			return newToolResultError("rule_id parameter is required"), nil
 		}
 		if !validRuleID.MatchString(ruleID) {
-			return newToolResultError("invalid rule_id format: must match [A-Z][A-Z0-9_]+ (e.g., PROMPT_INJECTION_001)"), nil
+			return newToolResultError("invalid rule_id format: must match [A-Z][A-Z0-9_-]{1,63} (e.g., PROMPT_INJECTION_001 or SC-EX-007)"), nil
 		}
 
 		detail, err := aguara.ExplainRule(ruleID)
@@ -409,7 +416,7 @@ func handleDiscoverMCP(debug bool) mcp.ToolHandler {
 		result, err := aguara.Discover()
 		if err != nil {
 			if debug {
-				fmt.Fprintf(os.Stderr, "[DEBUG] discover_mcp error: %v\n", err)
+				fmt.Fprintln(os.Stderr, "[DEBUG] discover_mcp: discovery failed")
 			}
 			return newToolResultError("discovery failed"), nil
 		}
@@ -419,7 +426,7 @@ func handleDiscoverMCP(debug bool) mcp.ToolHandler {
 				result.TotalServers(), result.TotalClients())
 		}
 
-		out, err := json.MarshalIndent(result, "", "  ")
+		out, err := json.MarshalIndent(discoveryInventory(result), "", "  ")
 		if err != nil {
 			return newToolResultError("failed to format discovery results"), nil
 		}
