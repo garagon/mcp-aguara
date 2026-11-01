@@ -138,7 +138,8 @@ func TestV024_ExplainRule_AgentPolicyRule(t *testing.T) {
 
 func TestV024_ListRules_IncludesAgentTrustCategory(t *testing.T) {
 	rules := aguara.ListRules(aguara.WithCategory("agent-trust"))
-	if got, want := len(rules), 8; got != want {
+	// v0.28.0 adds skill policy and skill-chain metadata to this category.
+	if got, want := len(rules), 10; got != want {
 		t.Errorf("ListRules(agent-trust) = %d rules, want %d", got, want)
 	}
 }

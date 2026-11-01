@@ -4,6 +4,35 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ## [Unreleased]
 
+### Security
+
+- `discover_mcp` no longer returns raw local server definitions. Its redacted
+  inventory withholds commands, arguments, environment keys and values, server
+  names and paths, including from discovery debug logs. Counts and response-local
+  IDs remain available. Discovery is explicitly marked as not scanned and remains
+  best-effort; an empty inventory is not a security verdict.
+- `check_mcp_config` rejects redacted discovery inventories instead of treating
+  them as original configurations. This is an intentional response-contract
+  change: callers must supply original configuration JSON for inspection.
+- Submitted content cannot suppress its own findings through inline Aguara ignore
+  directives. Explicit caller-owned rule disables remain supported.
+
+### Changed
+
+- Pin Aguara to merged commit `8412e8e5d2d122806002e4622ddd56394ecd9e44`
+  (`v0.28.1-0.20261101224820-8412e8e5d2d1`), including the restored `SC-EX-007`
+  detection of direct Python cron writes. This is a development pin, not a
+  published Aguara v0.28.1 release. The catalog contains 259 detections;
+  catalog availability does not imply activation in single-content scans.
+- Source builds require Go 1.26 or later. CI and release workflows read the
+  requirement from `go.mod`; the Docker builder uses the pinned Go 1.27.1 image
+  already used by Aguara core. The runtime image and MCP release version are unchanged.
+
+### Fixed
+
+- `explain_rule` accepts catalog IDs containing hyphens, including `SC-EX-007`,
+  while retaining the existing length limit and rejection of paths and shell syntax.
+
 ## [0.8.0] - 2026-07-01
 
 Aligns mcp-aguara with the Aguara v0.27.0 backend (v0.25-v0.27) and

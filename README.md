@@ -16,7 +16,9 @@ Use it to help agents answer questions like:
 - Does this skill try to read secrets or exfiltrate data?
 - Which rule triggered, and why?
 
-Aguara MCP v0.8.0 is aligned with [Aguara](https://github.com/garagon/aguara) v0.27.0. It includes the current 250-detection catalog, the agent-trust rules for Claude Code project settings, agent instruction files (`.cursorrules`, `AGENTS.md`) as high-trust prompt surfaces, npm install-trust policy checks (`.npmrc`, `package.json` allowScripts), pnpm supply-chain posture checks, sensitivity-based output redaction, Unicode normalization, and context-aware false-positive reduction. Built on the [official MCP SDK](https://github.com/modelcontextprotocol/go-sdk) (v1, Tier 1).
+The development source pins [Aguara commit 8412e8e](https://github.com/garagon/aguara/commit/8412e8e5d2d122806002e4622ddd56394ecd9e44), a post-v0.28.0 revision that restores direct Python cron-write detection. The exact Go module version is `v0.28.1-0.20261101224820-8412e8e5d2d1`; this is not a published v0.28.1 release. Building from source requires Go 1.26 or later. The latest published Aguara MCP release, v0.8.0, still embeds v0.27.0; the changes below are not yet released. Built on the [official MCP SDK](https://github.com/modelcontextprotocol/go-sdk) (v1, Tier 1).
+
+Unreleased security changes: discovery returns a redacted inventory instead of raw local configurations, and scanned content can no longer suppress its own findings with inline Aguara directives. Explicit caller options such as `disabled_rules` remain supported.
 
 Repository-wide dependency checks (npm, PyPI, pnpm, Go, crates.io, Composer, RubyGems, Maven, NuGet) are still handled by the Aguara CLI:
 
@@ -107,7 +109,7 @@ Check an MCP server configuration (JSON) for security issues before adding it to
 
 ### `list_rules`
 
-Browse the cataloged security rules. Returns 250 detections (193 YAML pattern rules + 57 analyzer-emitted rules from ci-trust, pkgmeta, jsrisk, pyrisk, rsbuild, npm-policy, pnpm-policy, agent-policy, NLP, toxic-flow, and rug-pull analyzers) spanning multiple threat categories. Useful when the agent needs to understand what Aguara can detect or filter by category.
+Browse the embedded engine's catalog: 259 detections (191 YAML pattern rules + 68 analyzer-emitted rules). Useful when the agent needs to understand a finding or filter by category. Catalog availability is not activation: bundle checks and stateful monitoring are not available through these single-content MCP tools.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
@@ -123,7 +125,11 @@ Get detailed information about a specific rule by ID. Resolves both YAML rules (
 
 ### `discover_mcp`
 
-Discover MCP server configurations on the local machine by reading known MCP client config files (Claude Desktop, Cursor, VS Code, Windsurf, and others). Returns the server definitions including commands, arguments, and environment variables. **Read-only**: this tool never executes the discovered commands and never connects to any server. Pair with `check_mcp_config` to evaluate each definition before acting on it.
+Discover MCP server configurations on the local machine by reading known MCP client config files (Claude Desktop, Cursor, VS Code, Windsurf, and others). Returns client identifiers, response-local config/server IDs, and argument/environment counts. Commands, arguments, environment keys and values, server names, and local paths are withheld because any of these fields can carry credentials or instructions.
+
+**Read-only, not a scan:** discovery never executes commands or connects to servers. The response is marked `kind: "aguara.discovery-inventory"`, `redacted: true`, and `scan_status: "not_scanned"`. It is best-effort: unreadable or unsupported configurations may be skipped, so an empty inventory is not evidence that the machine is safe or has no MCP configurations.
+
+This intentionally replaces the raw-definition response. `check_mcp_config` rejects this inventory; it needs the original configuration JSON to inspect risky commands and credentials. Do not reconstruct a configuration from inventory counts or treat discovery as a security verdict.
 
 No parameters required.
 
@@ -170,7 +176,7 @@ Without Aguara MCP, the agent would have installed it silently.
 
 ## Coverage
 
-The Aguara v0.27.0 catalog totals **250 detections** (193 YAML pattern rules + 57 analyzer-emitted) across twelve analyzers:
+The pinned development engine's catalog totals **259 detections** (191 YAML pattern rules + 68 analyzer-emitted). The MCP tools analyze one submitted content item at a time:
 
 - **Pattern matcher** - regex / contains rules covering prompt injection, credential leaks, exfiltration, command execution, supply-chain patterns, MCP attacks, indirect injection, external download, SSRF/cloud, third-party content, and Unicode attacks. Content is NFKC-normalized before scanning to prevent Unicode evasion.
 - **CI trust** - YAML-aware analysis of `.github/workflows/*.yml` for pwn-request chains, cache poisoning, OIDC token surface, and persisted-credentials checkout patterns. Reachable from MCP when the `filename` argument contains `.github/workflows/`.
@@ -182,7 +188,12 @@ The Aguara v0.27.0 catalog totals **250 detections** (193 YAML pattern rules + 5
 - **Pnpm policy** - `pnpm-workspace.yaml` analysis for supply-chain settings weakened below the pnpm v11 defaults. Reachable from MCP when the `filename` argument is `pnpm-workspace.yaml`.
 - **Agent policy** - `.claude/settings.json` analysis for Claude Code host configuration that is dangerous to inherit from a cloned repo (fetch-and-execute hooks, code-injection env vars, `bypassPermissions`, MCP auto-approval, secret-read allow rules). Reachable from MCP when the `filename` argument is `.claude/settings.json` or `.claude/settings.local.json`.
 - **NLP** - Goldmark-based markdown analysis for prompt-injection, authority-claim, and credential-transmission combos that evade static patterns. Agent instruction files (`.cursorrules`, `.windsurfrules`, `.clinerules`, `AGENTS.md`, `copilot-instructions.md`) are analyzed even without a `.md` extension and weighted as high-trust prompt surfaces.
-- **Toxic flow** - single-file taint tracking plus cross-file correlation for dangerous capability combinations.
+- **Skill policy** - wildcard tool grants in skill frontmatter when the filename is `SKILL.md`.
+- **Script risk** - Python decode/remote-fetch execution, context exfiltration, world-writable permissions, shell install sources, and persistence. `SC-EX-007` retains its identity after moving from a pattern rule into this analyzer.
+- **MCP capabilities** - distinguishes explicit capability grants from drops and denials in supported configuration fields.
+- **Kubernetes policy** - reports explicit SETUID/SETGID additions in supported workload security contexts as contextual findings, not proof of privilege escalation.
+- **Toxic flow** - risky capability combinations within the submitted content. These tools do not submit a directory or correlate separate calls.
+- **Skill chain** - catalog metadata is available, but its bundle analysis is not invoked by these single-content MCP tools.
 - **Rug-pull** - SHA256-based change detection on tool descriptions over time (used by the Aguara CLI; not currently invoked by MCP tools).
 
 See [garagon/aguara](https://github.com/garagon/aguara) for the canonical category list and rule IDs.
@@ -196,12 +207,8 @@ Agent                  Aguara MCP
   │                          ├─ aguara.ScanContent()
   │                          │  or ScanContentAs() with tool context
   │                          │  (in-process, no disk I/O)
-  │                          │  250 detections · 11 active analyzers
-  │                          │  (pattern + ci-trust + pkgmeta + jsrisk +
-  │                          │   pyrisk + rsbuild + npm-policy +
-  │                          │   pnpm-policy + agent-policy + NLP +
-  │                          │   toxic-flow; rug-pull needs
-  │                          │   WithStateDir, n/a here)
+  │                          │  target-appropriate single-content checks
+  │                          │  (no bundle scans or stateful monitoring)
   │                          │  NFKC normalization · FP reduction
   │                          │  sensitive matches redacted
   │◄─ verdict + findings ────┤
@@ -209,7 +216,8 @@ Agent                  Aguara MCP
   ├─ discover_mcp() ────────►│
   │                          ├─ aguara.Discover()
   │                          │  (reads local config files)
-  │◄─ server definitions ────┤
+  │◄─ redacted inventory ────┤
+  │                          │  not a scan; no raw config values
   │                          │
 ```
 
