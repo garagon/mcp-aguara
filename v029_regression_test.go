@@ -23,6 +23,9 @@ func TestV029_CapabilityFindingContract(t *testing.T) {
 		{"kubernetes-setuid", "pod.yaml",
 			"apiVersion: v1\nkind: Pod\nspec:\n  containers:\n  - name: app\n    securityContext:\n      capabilities: {add: [SETUID]}\n",
 			"K8S_IDENTITY_CAPABILITIES_001", "LOW", "kube-policy", "container-security", "flag"},
+		{"kubernetes-setgid", "pod.yaml",
+			"apiVersion: v1\nkind: Pod\nspec:\n  containers:\n  - name: app\n    securityContext:\n      capabilities: {add: [SETGID]}\n",
+			"K8S_IDENTITY_CAPABILITIES_001", "LOW", "kube-policy", "container-security", "flag"},
 		{"mcp-capability-grant", "config.json", `{"capabilities":{"add":["ALL"]}}`,
 			"MCP_009", "HIGH", "mcp-capability", "mcp-attack", "block"},
 	}

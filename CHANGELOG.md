@@ -36,13 +36,16 @@ the original configuration JSON instead. An inventory is not a security verdict.
   from 250 to 259 detections (191 pattern rules and 68 analyzer-emitted);
   catalog availability does not imply activation in single-content scans.
   `stats.rules_loaded` counts compiled pattern rules and now reports 191.
-- Findings can carry the analyzer values `mcp-capability` and `kube-policy` and
-  the category `container-security`. `MCP_009` keeps its ID and HIGH severity
-  but is now reported by `mcp-capability`. An explicit Kubernetes `SETUID` or
-  `SETGID` capability request is reported as LOW
+- Findings can carry the analyzer values `script-risk`, `skill-policy`,
+  `mcp-capability` and `kube-policy` and the category `container-security`.
+  `SC-EX-007` and `MCP_009` keep their IDs and severities but are now reported
+  by `script-risk` and `mcp-capability` instead of `pattern`. When a Kubernetes
+  manifest is scanned with a `.yaml`, `.yml` or `.json` filename, an explicit
+  `SETUID` or `SETGID` capability request is reported as LOW
   `K8S_IDENTITY_CAPABILITIES_001` instead of HIGH `SUPPLY_007`, so on its own it
-  yields a `flag` verdict rather than `block`. Clients that filter findings by
-  analyzer or category should accept the new values.
+  yields a `flag` verdict rather than `block`; other filenames, including the
+  `skill.md` default, keep the HIGH `SUPPLY_007` finding. Clients that filter
+  findings by analyzer or category should accept the new values.
 - `list_rules` and `explain_rule` cover the skill-policy, skill-chain,
   script-risk, mcp-capability and kube-policy analyzers, and the `explain_rule`
   description names them.
