@@ -30,15 +30,28 @@ the original configuration JSON instead. An inventory is not a security verdict.
 
 ### Changed
 
-- The embedded engine includes the capability grant/drop corrections and the
-  restored `SC-EX-007` detection of direct Python cron writes. It uses Aguara
-  commit `8412e8e5d2d122806002e4622ddd56394ecd9e44`
-  (`v0.28.1-0.20261101224820-8412e8e5d2d1`), not a published Aguara v0.28.1
-  release. The catalog contains 259 detections; catalog availability does not
-  imply activation in single-content scans.
-- Source builds require Go 1.26 or later. CI and release workflows read the
-  requirement from `go.mod`; the Docker builder uses the pinned Go 1.27.1 image
-  already used by Aguara core. The runtime base image is unchanged.
+- Aguara core v0.27.0 -> v0.29.0. The server embeds the tagged Aguara v0.29.0
+  release, which includes the capability grant/drop corrections and the
+  restored `SC-EX-007` detection of direct Python cron writes. The catalog grows
+  from 250 to 259 detections (191 pattern rules and 68 analyzer-emitted);
+  catalog availability does not imply activation in single-content scans.
+  `stats.rules_loaded` counts compiled pattern rules and now reports 191.
+- Findings can carry the analyzer values `mcp-capability` and `kube-policy` and
+  the category `container-security`. `MCP_009` keeps its ID and HIGH severity
+  but is now reported by `mcp-capability`. An explicit Kubernetes `SETUID` or
+  `SETGID` capability request is reported as LOW
+  `K8S_IDENTITY_CAPABILITIES_001` instead of HIGH `SUPPLY_007`, so on its own it
+  yields a `flag` verdict rather than `block`. Clients that filter findings by
+  analyzer or category should accept the new values.
+- `list_rules` and `explain_rule` cover the skill-policy, skill-chain,
+  script-risk, mcp-capability and kube-policy analyzers, and the `explain_rule`
+  description names them.
+- The threat-intel snapshot refreshed in Aguara v0.29.0 is not linked into the
+  MCP binary; repository-wide dependency checks remain in the Aguara CLI.
+- Source builds require Go 1.26 or later, the same minimum as Aguara v0.29.0. CI
+  and release workflows read the requirement from `go.mod`; the Docker builder
+  uses the pinned golang 1.27.4 image that Aguara v0.29.0 builds with. The
+  runtime base image is unchanged.
 
 ### Fixed
 
