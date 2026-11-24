@@ -16,7 +16,7 @@ Use it to help agents answer questions like:
 - Does this skill try to read secrets or exfiltrate data?
 - Which rule triggered, and why?
 
-The v0.9.0 source pins [Aguara commit 8412e8e](https://github.com/garagon/aguara/commit/8412e8e5d2d122806002e4622ddd56394ecd9e44), a post-v0.28.0 revision that restores direct Python cron-write detection. The exact Go module version is `v0.28.1-0.20261101224820-8412e8e5d2d1`; this is not a published Aguara v0.28.1 release. Building from source requires Go 1.26 or later. Source changes can precede published binaries; check [GitHub Releases](https://github.com/garagon/mcp-aguara/releases) for available artifacts. Built on the [official MCP SDK](https://github.com/modelcontextprotocol/go-sdk) (v1, Tier 1).
+The v0.9.0 source embeds [Aguara v0.29.0](https://github.com/garagon/aguara/releases/tag/v0.29.0), which restores direct Python cron-write detection and reads capability grants and Kubernetes `SETUID`/`SETGID` requests from configuration structure. Building from source requires Go 1.26 or later. Source changes can precede published binaries; check [GitHub Releases](https://github.com/garagon/mcp-aguara/releases) for available artifacts. Built on the [official MCP SDK](https://github.com/modelcontextprotocol/go-sdk) (v1, Tier 1).
 
 In v0.9.0, discovery returns a redacted inventory instead of raw local configurations, and scanned content can no longer suppress its own findings with inline Aguara directives. Explicit caller options such as `disabled_rules` remain supported. **Upgrading from v0.8.0:** callers that forwarded discovery output to `check_mcp_config` must instead supply the original configuration JSON; the inventory is not a scan input or a security verdict.
 
@@ -117,7 +117,7 @@ Browse the embedded engine's catalog: 259 detections (191 YAML pattern rules + 6
 
 ### `explain_rule`
 
-Get detailed information about a specific rule by ID. Resolves both YAML rules (returns patterns plus true/false-positive examples) and analyzer-emitted rule IDs from ci-trust, pkgmeta, jsrisk, pyrisk, rsbuild, npm-policy, pnpm-policy, agent-policy, NLP, toxic-flow, and rug-pull (returns severity, category, analyzer name, description, and remediation; analyzer rules have no inline patterns or examples).
+Get detailed information about a specific rule by ID. Resolves both YAML rules (returns patterns plus true/false-positive examples) and analyzer-emitted rule IDs from ci-trust, pkgmeta, jsrisk, pyrisk, rsbuild, npm-policy, pnpm-policy, agent-policy, skill-policy, skill-chain, script-risk, mcp-capability, kube-policy, NLP, toxic-flow, and rug-pull (returns severity, category, analyzer name, description, and remediation; analyzer rules have no inline patterns or examples).
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
@@ -176,7 +176,7 @@ Without Aguara MCP, the agent would have installed it silently.
 
 ## Coverage
 
-The pinned development engine's catalog totals **259 detections** (191 YAML pattern rules + 68 analyzer-emitted). The MCP tools analyze one submitted content item at a time:
+The embedded Aguara v0.29.0 catalog totals **259 detections** (191 YAML pattern rules + 68 analyzer-emitted). The MCP tools analyze one submitted content item at a time:
 
 - **Pattern matcher** - regex / contains rules covering prompt injection, credential leaks, exfiltration, command execution, supply-chain patterns, MCP attacks, indirect injection, external download, SSRF/cloud, third-party content, and Unicode attacks. Content is NFKC-normalized before scanning to prevent Unicode evasion.
 - **CI trust** - YAML-aware analysis of `.github/workflows/*.yml` for pwn-request chains, cache poisoning, OIDC token surface, and persisted-credentials checkout patterns. Reachable from MCP when the `filename` argument contains `.github/workflows/`.
