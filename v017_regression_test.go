@@ -17,7 +17,7 @@ import (
 
 func TestV017_ListRules_ReturnsFullCatalog(t *testing.T) {
 	// The expected count tracks the aligned core version; update it on
-	// every core bump (8412e8e: 191 YAML + 68 analyzer-emitted).
+	// every core bump (v0.29.0: 191 YAML + 68 analyzer-emitted).
 	rules := aguara.ListRules()
 	if got, want := len(rules), 259; got != want {
 		t.Errorf("aguara.ListRules() = %d rules, want %d (191 YAML + 68 analyzer-emitted)", got, want)

@@ -134,7 +134,8 @@ func explainRuleTool() *mcp.Tool {
 		Description: "Get detailed information about a specific security rule by ID. Resolves " +
 			"both YAML rules (returns patterns plus true/false-positive examples) and " +
 			"analyzer-emitted rules from ci-trust, pkgmeta, jsrisk, pyrisk, rsbuild, " +
-			"npm-policy, pnpm-policy, agent-policy, NLP, toxic-flow, and rug-pull (returns severity, " +
+			"npm-policy, pnpm-policy, agent-policy, skill-policy, skill-chain, script-risk, " +
+			"mcp-capability, kube-policy, NLP, toxic-flow, and rug-pull (returns severity, " +
 			"category, analyzer name, description, and remediation; analyzer rules have no " +
 			"inline patterns or examples).",
 		InputSchema: map[string]any{
